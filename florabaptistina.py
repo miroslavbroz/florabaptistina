@@ -54,40 +54,39 @@ import emcee
 # ============================================================
 
 def load_data(filename):
-    """Read columns a, e, i, h."""
-    data = np.loadtxt(filename, usecols=(0, 1, 2, 3))
+    """Read columns a, e, i, h, p (and "orig" -> the original catalogue line no.)."""
+    data = np.loadtxt(filename, usecols=(0, 1, 2, 3, 4, 5), converters=lambda s: np.nan if s.strip() == '?' else float(s))
     data = np.atleast_2d(data)
 
-    data = data[np.all(np.isfinite(data), axis=1)]
     data = data[
         (data[:, 0] > 2.18)    # nu6 bias
         & (data[:, 0] < 2.33)
         & (data[:, 1] >= 0)
         & (data[:, 1] < 1)
         & (data[:, 2] >= 0)
+        & (data[:, 2] < 1)
         & (data[:, 3] < 18.5)  # observational bias
     ]
 
     if len(data) < 20:
         raise ValueError("Too few valid asteroids.")
 
-    a, e, inc, h = data.T
+    a, e, inc, h, p, orig = data.T
 
-    return a, e, inc, h
+    return a, e, inc, h, p, orig
 
 # ============================================================
 # Special functions.
 # ============================================================
 
-def logG(x, a, b, d, e):
+def logG(x, a, b, c, d):
     """
     Log of normalized skewed Gaussian.
 
     a .. centre
     b .. width
-    c .. normalization = 1
-    d .. skewness
-    e .. exponent
+    c .. skewness
+    d .. exponent
 
         x-a
     z = ---
@@ -97,33 +96,33 @@ def logG(x, a, b, d, e):
     G = ---------- exp(-z )
         b sqrt(pi)
 
-             e               e
-    G = ------------ exp(-|z| ) Phi(sqrt(2) d z)
-        b Gamma(1/e)      
+             d               d
+    G = ------------ exp(-|z| ) Phi(sqrt(2) c z)
+        b Gamma(1/d)      
 
     """
 
-    if b.any() <= 0 or e <= 0:
+    if b.any() <= 0 or d <= 0:
         return np.full_like(np.asarray(x, dtype=float), -np.inf)
 
     z = (x-a)/b
 
-    return (np.log(e) - np.log(b) - gammaln(1.0/e) - np.abs(z)**e + log_ndtr(np.sqrt(2.0)*d*z))
+    return (np.log(d) - np.log(b) - gammaln(1.0/d) - np.abs(z)**d + log_ndtr(np.sqrt(2.0)*c*z))
 
-def logG_(x, a, b, d, e, lo, hi):
+def logG_(x, a, b, c, d, lo, hi):
     """Normalisation on <lo, hi>."""
 
     # Use only 10 normalisations and then an interpolation => 2.2 iterations s^-1.
     b = np.asarray(b)
     b10 = np.quantile(b, np.linspace(0.0, 1.0, 10))
-    Z10 = np.asarray([quad(lambda x: np.exp(logG(x, a, b1, d, e)), lo, hi)[0] for b1 in b10])
+    Z10 = np.asarray([quad(lambda x: np.exp(logG(x, a, b1, c, d)), lo, hi)[0] for b1 in b10])
     Z = np.interp(b, b10, Z10)
     Z = np.asarray(Z)
 
     if not np.isfinite(Z.any()) or Z.any() <= 0:
         return np.full_like(np.asarray(x, dtype=float), -np.inf)
 
-    return logG(x, a, b, d, e) - np.log(Z)
+    return logG(x, a, b, c, d) - np.log(Z)
 
 def int_exp_kx(k, lo, hi):
     """Integral of exp(k x) between lo and hi; stable for k -> 0."""
@@ -205,14 +204,19 @@ def _sample(logpdf, lo, hi, n, rng):
 # 13 Hb       H break
 # 14 alpha1   bright-side slope
 # 15 alpha2   faint-side slope
+# 16 mu_p     pv centre
+# 17 w_p      pv width
+# 18 s_p      pv skewness
+# 19 beta_p   pv exponent
 
 class Model:
 
-    def __init__(self, a, e, inc, h, tmp='lnlike.tmp', debug=False):
+    def __init__(self, a, e, inc, h, p, tmp='lnlike.tmp', debug=False):
         self.a = np.asarray(a)
         self.e = np.asarray(e)
         self.i = np.asarray(inc)
         self.h = np.asarray(h)
+        self.p = np.asarray(p)
         self.tmp = tmp
         self.debug = debug
 
@@ -220,6 +224,7 @@ class Model:
         self.emin, self.emax = np.min(e), np.max(e)
         self.imin, self.imax = np.min(inc), np.max(inc)
         self.hmin, self.hmax = np.min(h), np.max(h)
+        self.pmin, self.pmax = np.min(p), np.max(p)
 
         self.arange = max(self.amax - self.amin, 1e-8)
         self.erange = max(self.emax - self.emin, 1e-8)
@@ -242,9 +247,13 @@ class Model:
             (13.5,16.5),		# Hb
             (0.4, 0.7),			# alpha1
             (0.0, 0.7),			# alpha2
+            (0.0, 1.0),			# mu_p
+            (0.001, 1.0),		# w_p
+            (-10.0, 10.0),		# s_p
+            (1.1, 5.0),			# beta_p
         ]
 
-        self.names = ["a_c", "w0", "C", "s_a", "beta_a", "mu_e", "w_e", "s_e", "beta_e", "mu_i", "w_i", "s_i", "beta_i", "Hb", "alpha1", "alpha2"]
+        self.names = ["a_c", "w0", "C", "s_a", "beta_a", "mu_e", "w_e", "s_e", "beta_e", "mu_i", "w_i", "s_i", "beta_i", "Hb", "alpha1", "alpha2", "mu_p", "w_p", "s_p", "beta_p"]
 
         self.ndim = len(self.bounds)
 
@@ -253,7 +262,7 @@ class Model:
         p(\vec x|theta)
 
         """
-        (a_c, w0, C, s_a, beta_a, mu_e, w_e, s_e, beta_e, mu_i, w_i, s_i, beta_i, Hb, alpha1, alpha2) = theta
+        (a_c, w0, C, s_a, beta_a, mu_e, w_e, s_e, beta_e, mu_i, w_i, s_i, beta_i, Hb, alpha1, alpha2, mu_p, w_p, s_p, beta_p) = theta
         self.theta = theta
 
         # Magnitude-dependent semimajor-axis width.
@@ -269,12 +278,18 @@ class Model:
         # Magnitude distribution, normalized on observed H range.
         log_h = logH(self.h, Hb, alpha1, alpha2, self.hmin, self.hmax)
 
-        lnp = log_a + log_e + log_i + log_h
+        # Geometric albedo (might be undefined)
+        mask = np.isfinite(self.p)
+        log_p = np.zeros_like(self.p)
+        log_p[mask] = logG(self.p[mask], mu_p, w_p, s_p, beta_p)
+
+        lnp = log_a + log_e + log_i + log_h + log_p
 
         self.log_a = log_a
         self.log_e = log_e
         self.log_i = log_i
         self.log_h = log_h
+        self.log_p = log_p
 
         if not np.all(np.isfinite(lnp)):
 # Note: Ditto.
@@ -328,13 +343,14 @@ class Model:
 
         e = _sample(lambda x: logG(x, mu_e, w_e, s_e, beta_e), 0.0, 1.0, n, rng)
         i = _sample(lambda x: logG(x, mu_i, w_i, s_i, beta_i), 0.0, 1.0, n, rng)
+        p = _sample(lambda x: logG(x, mu_p, w_p, s_p, beta_p), 0.0, 1.0, n, rng)
         h = _sample(lambda x: logH(x, Hb, alpha1, alpha2, self.hmin, self.hmax), self.hmin, self.hmax, n, rng)
 
         w_a = np.sqrt(w0**2 + (C * 10.0**(0.2 * h))**2)
 
         a = _sample(lambda x: logG_(x, a_c, w_a, s_a, beta_a, self.amin, self.amax), self.amin, self.amax, n, rng)
 
-        return a, e, i, h
+        return a, e, i, h, p
 
 # ============================================================
 # N Models
@@ -342,11 +358,12 @@ class Model:
 
 class ModelN:
 
-    def __init__(self, a, e, inc, h, N=2, debug=False):
+    def __init__(self, a, e, inc, h, p, orig, N=2, debug=False):
+        self.orig = orig
         self.N = N
         self.debug = debug
 
-        self.models = [Model(a, e, inc, h) for _ in range(N)]
+        self.models = [Model(a, e, inc, h, p) for _ in range(N)]
 
         self.bounds = sum((model.bounds for model in self.models), [])
         self.bounds += (N-1)*[(-5, 5)]
@@ -434,13 +451,13 @@ class ModelN:
         j = np.argmax(p_of_families.T, axis=1)
         k = np.array([ np.random.choice(len(p), p=p) for p in p_of_families.T ])
         model = self.models[0]
-        elmts = np.array([model.a, model.e, model.i, model.h])
+        elmts = np.array([model.a, model.e, model.i, model.h, model.p])
         np.savetxt("families.tmp",
-            np.column_stack((i, j, k, p_of_families.T, elmts.T)),
-            header='i j k_random p_of_families .. a e inc H',
-            fmt=3*['%d'] + 2*self.N*['%f'])
+            np.column_stack((self.orig, j, k, p_of_families.T, elmts.T)),
+            header='orig j k_random p_of_families .. a e inc H p',
+            fmt=3*['%d'] + self.N*['%f'] + 5*['%f'])
 
-        for attr in ["a", "e", "i", "h"]:
+        for attr in ["a", "e", "i", "h", "p"]:
             x = getattr(self.models[0], attr)
             lps = [np.log(self.w[i]) + getattr(model, "log_" + attr) for i, model in enumerate(self.models)]
             lp = logsumexp(lps, axis=0)
@@ -473,6 +490,7 @@ dimensions ndim = {self.ndim}
         e = np.empty(n)
         i = np.empty(n)
         h = np.empty(n)
+        p = np.empty(n)
     
         for k, model in enumerate(self.models):
             idx = np.flatnonzero(family==k)
@@ -480,9 +498,9 @@ dimensions ndim = {self.ndim}
                 continue
     
             samples = model.sample(thetas[k], n=len(idx), rng=rng)
-            a[idx], e[idx], i[idx], h[idx] = samples
+            a[idx], e[idx], i[idx], h[idx], p[idx] = samples
     
-        return a, e, i, h, family
+        return a, e, i, h, p, family
 
 # ============================================================
 # MCMC
@@ -524,59 +542,59 @@ def run_mcmc(model, theta0, nwalkers=72, nsteps=10000, seed=1234):
 
 def main():
 
-    a, e, i, h = load_data("elmts.txt")
+    a, e, i, h, p, orig = load_data("elmts.txt")
 
-    model = ModelN(a, e, i, h, N=4)
+    model = ModelN(a, e, i, h, p, orig, N=2)
 
-# 0  .. 16 .. 32 .. 48 .. a_c   
-# 1  .. 17 .. 33 .. 49 .. w0    
-# 2  .. 18 .. 34 .. 50 .. C     
-# 3  .. 19 .. 35 .. 51 .. s_a   
-# 4  .. 20 .. 36 .. 52 .. beta_a
-# 5  .. 21 .. 37 .. 53 .. mu_e  
-# 6  .. 22 .. 38 .. 54 .. w_e   
-# 7  .. 23 .. 39 .. 55 .. s_e   
-# 8  .. 24 .. 40 .. 56 .. beta_e
-# 9  .. 25 .. 41 .. 57 .. mu_i  
-# 10 .. 26 .. 42 .. 58 .. w_i   
-# 11 .. 27 .. 43 .. 59 .. s_i   
-# 12 .. 28 .. 44 .. 60 .. beta_i
-# 13 .. 29 .. 45 .. 61 .. Hb    
-# 14 .. 30 .. 46 .. 62 .. alpha1
-# 15 .. 31 .. 47 .. 63 .. alpha2
+# 0  .. 20 .. a_c   
+# 1  .. 21 .. w0    
+# 2  .. 22 .. C     
+# 3  .. 23 .. s_a   
+# 4  .. 24 .. beta_a
+# 5  .. 25 .. mu_e  
+# 6  .. 26 .. w_e   
+# 7  .. 27 .. s_e   
+# 8  .. 28 .. beta_e
+# 9  .. 29 .. mu_i  
+# 10 .. 30 .. w_i   
+# 11 .. 31 .. s_i   
+# 12 .. 32 .. beta_i
+# 13 .. 33 .. Hb    
+# 14 .. 34 .. alpha1
+# 15 .. 35 .. alpha2
+# 16 .. 36 .. mu_p  
+# 17 .. 37 .. w_p   
+# 18 .. 38 .. s_p   
+# 19 .. 39 .. beta_p
 
-# 64 .. z1  65 .. z2  66 .. z3
+# 40 .. z1
 
-    theta0 = np.loadtxt("theta0.tmp")
+#    theta0 = np.loadtxt("theta0.tmp")
+#    theta0 = np.loadtxt("thetabest.tmp1__103837")
+    theta0 = np.loadtxt("thetabest.tmp2__104160")
 
 #    model.free[:] = False
 #    model.free[[64,65,66]] = True  # only weights
 #    model.free[[0,5,9,  16,21,25, 32,37,41, 48,53,57,  64,65,66]] = True  # only centres+weights
 #    model.free[[0,1,5,6,9,10,  16,17,21,22,25,26, 32,33,37,38,41,42, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+weights
 #    model.free[[0,1,5,6,9,10,13,14,15,  16,17,21,22,25,26,29,30,31, 32,33,37,38,41,42,45,46,47, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+magnitudes+weights
-    model.free[[2,15, 18,31, 34,47, 50,63]] = False  # C, alpha2
+    model.free[[2,22, 15,35]] = False  # C, alpha2
     model.fixed = theta0
 
     # per-model bounds, to prevent <->
-    model.models[0].bounds[0] = (2.20, 2.27)
-    model.models[1].bounds[0] = (2.20, 2.27)
-    model.models[2].bounds[0] = (2.23, 2.27)
-    model.models[3].bounds[0] = (2.27, 2.33)
+    model.models[0].bounds[0] = (2.20, 2.26)
+    model.models[1].bounds[0] = (2.23, 2.32)
 
-    model.models[0].bounds[5] = (0.11, 0.15)
-    model.models[1].bounds[5] = (0.11, 0.135)
-    model.models[2].bounds[5] = (0.135, 0.15)
-    model.models[3].bounds[5] = (0.15, 0.18)
+    model.models[0].bounds[5] = (0.12, 0.17)
+    model.models[1].bounds[5] = (0.13, 0.16)
 
-    model.models[0].bounds[9] = (0.060,0.100)
-    model.models[1].bounds[9] = (0.070,0.085)
-    model.models[2].bounds[9] = (0.085,0.100)
-    model.models[3].bounds[9] = (0.100,0.120)
+    model.models[0].bounds[9] = (0.06,0.11)
+    model.models[1].bounds[9] = (0.08,0.12)
 
     model.lnlike(theta0[model.free])
     print(model)
 
-    sampler = run_mcmc(model, theta0, nwalkers=128, nsteps=1000)
+    sampler = run_mcmc(model, theta0, nwalkers=37*2, nsteps=1000)
 
     print(model)
 
