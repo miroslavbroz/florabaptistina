@@ -112,11 +112,12 @@ def logG(x, a, b, c, d):
 def logG_(x, a, b, c, d, lo, hi):
     """Normalisation on <lo, hi>."""
 
-    # Use only 10 normalisations and then an interpolation => 2.2 iterations s^-1.
+    # Use only ~10 normalisations and then an interpolation => 2.2 iterations s^-1.
     b = np.asarray(b)
-    b10 = np.quantile(b, np.linspace(0.0, 1.0, 10))
+    b10 = np.quantile(b, np.linspace(0.0, 1.0, 50))
     Z10 = np.asarray([quad(lambda x: np.exp(logG(x, a, b1, c, d)), lo, hi)[0] for b1 in b10])
-    Z = np.interp(b, b10, Z10)
+    idx = (Z10 > 0.0)
+    Z = np.interp(b, b10[idx], Z10[idx])
     Z = np.asarray(Z)
 
     if not np.isfinite(Z.any()) or Z.any() <= 0:
@@ -232,18 +233,18 @@ class Model:
 
         self.bounds = [
             (self.amin, self.amax),	# a_c
-            (0.001, 0.200),		# w0
+            (0.0, 0.200),		# w0
             (0.0, 3.0e-4),		# C
             (-10.0, 10.0),		# s_a
-            (1.1, 5.0),			# beta_a
+            (1.1, 6.5),			# beta_a
             (0.0, 1.0),			# mu_e
             (0.001, 0.100),		# w_e
             (-10.0, 10.0),		# s_e
-            (1.1, 5.0),			# beta_e
+            (1.1, 6.5),			# beta_e
             (0.0, 1.0),			# mu_i
             (0.001, 0.100),		# w_i
             (-10.0, 10.0),		# s_i
-            (1.1, 5.0),			# beta_i
+            (1.1, 6.5),			# beta_i
             (13.5,16.5),		# Hb
             (0.4, 0.7),			# alpha1
             (0.0, 0.7),			# alpha2
