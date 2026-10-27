@@ -55,7 +55,7 @@ import emcee
 
 def load_data(filename):
     """Read columns a, e, i, h, p (and "orig" -> the original catalogue line no.)."""
-    data = np.loadtxt(filename, usecols=(0, 1, 2, 3, 4, 5), converters=lambda s: np.nan if s.strip() == '?' else float(s))
+    data = np.loadtxt(filename, usecols=(0, 1, 2, 3, 4, 5, 6), converters=lambda s: np.nan if s.strip() == '?' else float(s))
     data = np.atleast_2d(data)
 
     data = data[
@@ -71,9 +71,7 @@ def load_data(filename):
     if len(data) < 20:
         raise ValueError("Too few valid asteroids.")
 
-    a, e, inc, h, p, orig = data.T
-
-    return a, e, inc, h, p, orig
+    return data.T
 
 # ============================================================
 # Special functions.
@@ -212,20 +210,21 @@ def _sample(logpdf, lo, hi, n, rng):
 
 class Model:
 
-    def __init__(self, a, e, inc, h, p, tmp='lnlike.tmp', debug=False):
-        self.a = np.asarray(a)
-        self.e = np.asarray(e)
-        self.i = np.asarray(inc)
-        self.h = np.asarray(h)
-        self.p = np.asarray(p)
+    def __init__(self, data, tmp='lnlike.tmp', debug=False):
+        self.a = np.asarray(data[0])
+        self.e = np.asarray(data[1])
+        self.i = np.asarray(data[2])
+        self.h = np.asarray(data[3])
+        self.p = np.asarray(data[4])
+        self.psigma = np.asarray(data[5])
         self.tmp = tmp
         self.debug = debug
 
-        self.amin, self.amax = np.min(a), np.max(a)
-        self.emin, self.emax = np.min(e), np.max(e)
-        self.imin, self.imax = np.min(inc), np.max(inc)
-        self.hmin, self.hmax = np.min(h), np.max(h)
-        self.pmin, self.pmax = np.min(p), np.max(p)
+        self.amin, self.amax = np.min(self.a), np.max(self.a)
+        self.emin, self.emax = np.min(self.e), np.max(self.e)
+        self.imin, self.imax = np.min(self.i), np.max(self.i)
+        self.hmin, self.hmax = np.min(self.h), np.max(self.h)
+        self.pmin, self.pmax = np.min(self.p), np.max(self.p)
 
         self.arange = max(self.amax - self.amin, 1e-8)
         self.erange = max(self.emax - self.emin, 1e-8)
@@ -246,7 +245,7 @@ class Model:
             (-10.0, 10.0),		# s_i
             (1.1, 6.5),			# beta_i
             (13.5,16.5),		# Hb
-            (0.4, 0.7),			# alpha1
+            (0.35, 0.7),		# alpha1
             (0.0, 0.7),			# alpha2
             (0.0, 1.0),			# mu_p
             (0.001, 1.0),		# w_p
@@ -279,10 +278,11 @@ class Model:
         # Magnitude distribution, normalized on observed H range.
         log_h = logH(self.h, Hb, alpha1, alpha2, self.hmin, self.hmax)
 
-        # Geometric albedo (might be undefined)
+        # Geometric albedo (might be undefined, is uncertain)
         mask = np.isfinite(self.p)
         log_p = np.zeros_like(self.p)
-        log_p[mask] = logG(self.p[mask], mu_p, w_p, s_p, beta_p)
+        w_ = np.sqrt(w_p**2 + self.psigma[mask]**2)
+        log_p[mask] = logG(self.p[mask], mu_p, w_, s_p, beta_p)
 
         lnp = log_a + log_e + log_i + log_h + log_p
 
@@ -359,12 +359,12 @@ class Model:
 
 class ModelN:
 
-    def __init__(self, a, e, inc, h, p, orig, N=2, debug=False):
-        self.orig = orig
+    def __init__(self, data, N=2, debug=False):
+        self.orig = data[6]
         self.N = N
         self.debug = debug
 
-        self.models = [Model(a, e, inc, h, p) for _ in range(N)]
+        self.models = [Model(data) for _ in range(N)]
 
         self.bounds = sum((model.bounds for model in self.models), [])
         self.bounds += (N-1)*[(-5, 5)]
@@ -543,9 +543,9 @@ def run_mcmc(model, theta0, nwalkers=72, nsteps=10000, seed=1234):
 
 def main():
 
-    a, e, i, h, p, orig = load_data("elmts.txt")
+    data = load_data("elmts.txt")
 
-    model = ModelN(a, e, i, h, p, orig, N=2)
+    model = ModelN(data, N=2)
 
 # 0  .. 20 .. a_c   
 # 1  .. 21 .. w0    
@@ -570,20 +570,19 @@ def main():
 
 # 40 .. z1
 
-#    theta0 = np.loadtxt("theta0.tmp")
-#    theta0 = np.loadtxt("thetabest.tmp1__103837")
-    theta0 = np.loadtxt("thetabest.tmp2__104160")
+    theta0 = np.loadtxt("theta0.tmp")
+#    theta0 = np.loadtxt("thetabest.tmp1__103978")
 
 #    model.free[:] = False
 #    model.free[[64,65,66]] = True  # only weights
 #    model.free[[0,5,9,  16,21,25, 32,37,41, 48,53,57,  64,65,66]] = True  # only centres+weights
 #    model.free[[0,1,5,6,9,10,  16,17,21,22,25,26, 32,33,37,38,41,42, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+weights
 #    model.free[[0,1,5,6,9,10,13,14,15,  16,17,21,22,25,26,29,30,31, 32,33,37,38,41,42,45,46,47, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+magnitudes+weights
-    model.free[[2,22, 15,35]] = False  # C, alpha2
+    model.free[[0,20, 1,21, 2,22, 36,37,38,39, 40]] = False  # a_c, w0, C, albedo of B., z1
     model.fixed = theta0
 
     # per-model bounds, to prevent <->
-    model.models[0].bounds[0] = (2.20, 2.26)
+    model.models[0].bounds[0] = (2.199, 2.26)
     model.models[1].bounds[0] = (2.23, 2.32)
 
     model.models[0].bounds[5] = (0.12, 0.17)
@@ -595,7 +594,7 @@ def main():
     model.lnlike(theta0[model.free])
     print(model)
 
-    sampler = run_mcmc(model, theta0, nwalkers=37*2, nsteps=1000)
+    sampler = run_mcmc(model, theta0, nwalkers=41*2, nsteps=1500)
 
     print(model)
 
