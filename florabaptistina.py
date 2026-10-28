@@ -244,13 +244,13 @@ class Model:
             (0.001, 0.100),		# w_i
             (-10.0, 10.0),		# s_i
             (1.1, 6.5),			# beta_i
-            (13.5,16.5),		# Hb
+            (13.5,17.5),		# Hb
             (0.35, 0.7),		# alpha1
             (0.0, 0.7),			# alpha2
             (0.0, 1.0),			# mu_p
             (0.001, 1.0),		# w_p
             (-10.0, 10.0),		# s_p
-            (1.1, 5.0),			# beta_p
+            (1.1, 6.5),			# beta_p
         ]
 
         self.names = ["a_c", "w0", "C", "s_a", "beta_a", "mu_e", "w_e", "s_e", "beta_e", "mu_i", "w_i", "s_i", "beta_i", "Hb", "alpha1", "alpha2", "mu_p", "w_p", "s_p", "beta_p"]
@@ -357,7 +357,7 @@ class Model:
 # N Models
 # ============================================================
 
-class ModelN:
+class ModelN(Model):
 
     def __init__(self, data, N=2, debug=False):
         self.orig = data[6]
@@ -418,25 +418,6 @@ class ModelN:
         self._lnlikes = lnlikes
 
         return np.sum(lp)
-
-    def lnprob(self, theta):
-        """
-        p(theta|\vec x)
-
-        """
-        thetas, w = self.expandN(theta)
-
-        lnpriors = [
-            model.lnprior(thetas[i])
-            for i, model in enumerate(self.models)
-        ]
-
-        if not np.all(np.isfinite(lnpriors)):
-            return -np.inf
-
-        self._lnpriors = lnpriors
-
-        return np.sum(lnpriors) + self.lnlike(theta)
 
     def save(self):
         """
@@ -578,18 +559,77 @@ def main():
 #    model.free[[0,5,9,  16,21,25, 32,37,41, 48,53,57,  64,65,66]] = True  # only centres+weights
 #    model.free[[0,1,5,6,9,10,  16,17,21,22,25,26, 32,33,37,38,41,42, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+weights
 #    model.free[[0,1,5,6,9,10,13,14,15,  16,17,21,22,25,26,29,30,31, 32,33,37,38,41,42,45,46,47, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+magnitudes+weights
-    model.free[[0,20, 1,21, 2,22, 36,37,38,39, 40]] = False  # a_c, w0, C, albedo of B., z1
+#    model.free[[0,20, 1,21, 2,22, 36,37,38,39, 40]] = False  # a_c, w0, C, albedo of B., z1
     model.fixed = theta0
 
     # per-model bounds, to prevent <->
-    model.models[0].bounds[0] = (2.199, 2.26)
-    model.models[1].bounds[0] = (2.23, 2.32)
+    # a_c
+    model.bounds[0] = (2.20-0.005, 2.20+0.005)
+    model.bounds[20] = (2.26-0.005, 2.26+0.005)
 
-    model.models[0].bounds[5] = (0.12, 0.17)
-    model.models[1].bounds[5] = (0.13, 0.16)
+    model.bounds[1] = (0.0, 0.005)
+    model.bounds[21] = (0.0, 0.005)
 
-    model.models[0].bounds[9] = (0.06,0.11)
-    model.models[1].bounds[9] = (0.08,0.12)
+    model.bounds[2] = (2.00e-4, 2.20e-4)
+    model.bounds[22] = (0.19e-4, 0.21e-4)
+
+    model.bounds[3] = (-0.5, 0.5)
+    model.bounds[23] = (-0.5, 0.5)
+
+    model.bounds[4] = (1.5, 2.5)
+    model.bounds[24] = (5.5, 6.5)
+
+    # mu_e
+    model.bounds[5] = (0.12, 0.17)
+    model.bounds[25] = (0.13, 0.16)
+
+    model.bounds[6] = (0.020, 0.040)
+    model.bounds[26] = (0.005, 0.020)
+
+    model.bounds[7] = (-1.5, 0.5)
+    model.bounds[27] = (-0.1, 0.1)
+
+    model.bounds[8] = (3.0, 5.0)
+    model.bounds[28] = (1.5, 2.5)
+
+    # mu_i
+    model.bounds[9] = (0.06,0.11)
+    model.bounds[29] = (0.08,0.12)
+
+    model.bounds[10] = (0.020,0.040)
+    model.bounds[30] = (0.005,0.020)
+
+    model.bounds[11] = (-0.5, 0.5)
+    model.bounds[31] = (-0.1, 0.1)
+
+    model.bounds[12] = (1.5, 2.5)
+    model.bounds[32] = (1.5, 2.5)
+
+    # Hb
+#    model.bounds[13] = (13.5,17.5)
+#    model.bounds[33] = (13.5,17.5)
+
+#    model.bounds[14] = (0.35, 0.7)
+#    model.bounds[34] = (0.35, 0.7)
+
+#    model.bounds[15] = (0.0, 0.7)
+#    model.bounds[35] = (0.0, 0.7)
+
+    # mu_A
+    model.bounds[16] = (0.20,0.25)
+    model.bounds[36] = (0.13,0.17)
+
+    model.bounds[17] = (0.15,0.25)
+    model.bounds[37] = (0.06,0.08)
+
+    model.bounds[18] = (4.0,5.0)
+    model.bounds[38] = (-0.1,0.1)
+
+    model.bounds[19] = (1.5,2.5)
+    model.bounds[39] = (2.5,3.5)
+
+    # Z_1
+    model.bounds[40] = (1.0,1.4)
 
     model.lnlike(theta0[model.free])
     print(model)
