@@ -1,11 +1,11 @@
 
 See Vernazza et al. (A&A, submit.), Appendix A: Identification of Flora/Baptistina. MCMC method.
 
-![](figures/hist1.eps1.png)
-![](figures/hist2.eps1.png)
-![](figures/hist3.eps1.png)
-![](figures/hist4.eps1.png)
-![](figures/hist5.eps1.png)
+![](figs/hist1.eps1.png)
+![](figs/hist2.eps1.png)
+![](figs/hist3.eps1.png)
+![](figs/hist4.eps1.png)
+![](figs/hist5.eps1.png)
 
 Probabilities *p*(*a*|*H*), *p*(*e*), *p*(sin *i*), *p*(*H*)$, *p*(*A*)
 (coloured lines)
