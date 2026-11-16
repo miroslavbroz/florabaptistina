@@ -501,12 +501,9 @@ def run_mcmc(model, theta0, nwalkers=72, nsteps=10000, seed=1234):
     # Initialize walkers uniformly inside the prior bounds.
     #p0 = np.array([ rng.uniform(lo, hi, size=nwalkers) for lo, hi in model.bounds ]).T
 
-    # Initial walker dispersion: 0.01% of each prior range
+    # Initial walker dispersion: 0.1% of each prior range
     scale = bounds[:, 1] - bounds[:, 0]
     p0 = theta0 + rng.normal(0, 1e-3 * scale, size=(nwalkers, ndim))
-
-    for j, (lo, hi) in enumerate(bounds):
-        p0[:, j] = np.clip(p0[:, j], lo + 1e-10, hi - 1e-10)
 
     for p in p0:
         if not np.isfinite(model.lnprob(p)):
@@ -581,29 +578,29 @@ def main():
 
     # mu_e
     model.bounds[5] = (0.12, 0.17)
-    model.bounds[25] = (0.13, 0.16)
+    model.bounds[25] = (0.145, 0.150)
 
     model.bounds[6] = (0.020, 0.040)
-    model.bounds[26] = (0.005, 0.020)
+    model.bounds[26] = (0.008, 0.012)
 
     model.bounds[7] = (-1.5, 0.5)
-    model.bounds[27] = (-0.1, 0.1)
+    model.bounds[27] = (-1.0, 0.0)
 
     model.bounds[8] = (3.0, 5.0)
-    model.bounds[28] = (1.5, 2.5)
+    model.bounds[28] = (2.5, 3.5)
 
     # mu_i
     model.bounds[9] = (0.06,0.11)
-    model.bounds[29] = (0.08,0.12)
+    model.bounds[29] = (0.09,0.11)
 
     model.bounds[10] = (0.020,0.040)
-    model.bounds[30] = (0.005,0.020)
+    model.bounds[30] = (0.010,0.015)
 
     model.bounds[11] = (-0.5, 0.5)
-    model.bounds[31] = (-0.1, 0.1)
+    model.bounds[31] = (0.0, 1.0)
 
     model.bounds[12] = (1.5, 2.5)
-    model.bounds[32] = (1.5, 2.5)
+    model.bounds[32] = (2.5, 3.5)
 
     # Hb
 #    model.bounds[13] = (13.5,17.5)
@@ -620,7 +617,7 @@ def main():
     model.bounds[36] = (0.13,0.17)
 
     model.bounds[17] = (0.15,0.25)
-    model.bounds[37] = (0.06,0.08)
+    model.bounds[37] = (0.02,0.05)
 
     model.bounds[18] = (4.0,5.0)
     model.bounds[38] = (-0.1,0.1)
@@ -629,7 +626,7 @@ def main():
     model.bounds[39] = (2.5,3.5)
 
     # Z_1
-    model.bounds[40] = (1.0,1.4)
+    model.bounds[40] = (1.2,1.4)
 
     model.lnlike(theta0[model.free])
     print(model)
