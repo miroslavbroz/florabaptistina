@@ -7,7 +7,7 @@ See Vernazza et al. (A&A, submit.), Appendix A: Identification of Flora/Baptisti
 ![](figs/hist4.eps1.png)
 ![](figs/hist5.eps1.png)
 
-Probabilities *p*(*a*|*H*), *p*(*e*), *p*(sin *i*), *p*(*H*)$, *p*(*A*)
+Probabilities *p*(*a*|*H*), *p*(*e*), *p*(sin *i*), *p*(*H*), *p*(*A*)
 (coloured lines)
 used in the MCMC method
 to separate the Flora and Baptistina families.
@@ -20,4 +20,10 @@ The normalization and fitting of *p*(*H*) was done for
 to avoid observational bias,
 but eventually the probabilities were computed for all asteroids
 (*H* > 18.5 mag).
+
+![](corner_.png)
+
+Corner plot for the 41 parameters
+used in the MCMC method
+to separate the Flora and Baptistina families.
 
