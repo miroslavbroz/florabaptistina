@@ -419,6 +419,20 @@ class ModelN(Model):
 
         return np.sum(lp)
 
+    def lnprior(self, theta):
+        """
+        p(theta)
+
+        """
+        theta_ = self.expand(theta)
+
+        for val, (lo, hi) in zip(theta_, self.bounds):
+            if not np.isfinite(val) or not lo <= val <= hi:
+                print("lnprior(): val = ", val, " lo = ", lo, " hi = ", hi)
+                return -np.inf
+
+        return 0.0
+
     def save(self):
         """
                            f p1
@@ -552,11 +566,9 @@ def main():
 #    theta0 = np.loadtxt("thetabest.tmp1__103978")
 
 #    model.free[:] = False
-#    model.free[[64,65,66]] = True  # only weights
-#    model.free[[0,5,9,  16,21,25, 32,37,41, 48,53,57,  64,65,66]] = True  # only centres+weights
-#    model.free[[0,1,5,6,9,10,  16,17,21,22,25,26, 32,33,37,38,41,42, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+weights
-#    model.free[[0,1,5,6,9,10,13,14,15,  16,17,21,22,25,26,29,30,31, 32,33,37,38,41,42,45,46,47, 48,49,53,54,57,58,  64,65,66]] = True  # centres+widths+magnitudes+weights
-#    model.free[[0,20, 1,21, 2,22, 36,37,38,39, 40]] = False  # a_c, w0, C, albedo of B., z1
+    model.free[:] = True
+#    model.free[[40]] = True  # only weights
+    model.free[[0,20, 1,21, 2,22, 36,37,38,39, 40]] = False  # a_c, w0, C, albedo of B., z1
     model.fixed = theta0
 
     # per-model bounds, to prevent <->
@@ -617,7 +629,7 @@ def main():
     model.bounds[36] = (0.13,0.17)
 
     model.bounds[17] = (0.15,0.25)
-    model.bounds[37] = (0.02,0.05)
+    model.bounds[37] = (0.02,0.08)
 
     model.bounds[18] = (4.0,5.0)
     model.bounds[38] = (-0.1,0.1)
